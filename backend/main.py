@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 import database
 from models import DeviceCreate, DeviceUpdate
 from poller import AdaptivePoller
+from scanner import scanner
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -112,7 +113,7 @@ async def get_device(device_id: int):
 async def update_device(device_id: int, data: DeviceUpdate):
     if not database.get_device(device_id):
         raise HTTPException(404, "Пристрій не знайдено")
-    fields = data.model_dump(exclude_none=True)
+    fields = data.dict(exclude_none=True)
     # Pydantic enums → plain strings
     fields = {k: (v.value if hasattr(v, "value") else v) for k, v in fields.items()}
     return database.update_device(device_id, **fields)
@@ -140,6 +141,26 @@ async def get_uptime(device_id: int, hours: int = 24):
     if not database.get_device(device_id):
         raise HTTPException(404, "Пристрій не знайдено")
     return {"uptime": database.get_uptime_percent(device_id, hours), "hours": hours}
+
+
+# ── REST: scan ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/scan/start")
+async def start_scan():
+    if scanner.is_scanning:
+        return {"status": "already_scanning"}
+    # Run scan in background
+    asyncio.create_task(scanner.scan_network())
+    return {"status": "started"}
+
+
+@app.get("/api/scan/status")
+async def get_scan_status():
+    return {
+        "is_scanning": scanner.is_scanning,
+        "progress": scanner.progress,
+        "found": scanner.found_devices
+    }
 
 
 # ── WebSocket ──────────────────────────────────────────────────────────────────
