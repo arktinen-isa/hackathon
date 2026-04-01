@@ -31,14 +31,14 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import database
 
 
 # ── ICMP ping ──────────────────────────────────────────────────────────────────
 
-def ping_host(host: str) -> tuple[bool, Optional[float]]:
+def ping_host(host: str) -> Tuple[bool, Optional[float]]:
     """Повертає (доступний, час_відповіді_мс)."""
     if platform.system().lower() == "windows":
         cmd = ["ping", "-n", "1", "-w", "1000", host]
