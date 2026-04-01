@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Моніторинг мережі</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="header__inner">
+      <h1 class="header__title">
+        <span class="header__icon">⬡</span>
+        Моніторинг мережі
+      </h1>
+      <div class="header__stats">
+        <span class="stat" id="stat-total">Всього: —</span>
+        <span class="stat stat--up"   id="stat-up">▲ 0</span>
+        <span class="stat stat--down" id="stat-down">▼ 0</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input class="toolbar__search" id="search" type="search"
+             placeholder="Пошук за назвою або IP…" />
+      <select class="toolbar__filter" id="filter-type">
+        <option value="">Всі типи</option>
+        <option value="server">Сервер</option>
+        <option value="router">Маршрутизатор</option>
+        <option value="switch">Комутатор</option>
+        <option value="printer">Принтер</option>
+        <option value="computer">Комп'ютер</option>
+        <option value="camera">IP-камера</option>
+        <option value="other">Інший</option>
+      </select>
+      <select class="toolbar__filter" id="filter-status">
+        <option value="">Всі статуси</option>
+        <option value="up">Активний</option>
+        <option value="down">Недоступний</option>
+        <option value="unstable">Нестабільний</option>
+        <option value="unknown">Невідомо</option>
+      </select>
+      <button class="btn btn--primary" id="btn-add">+ Додати пристрій</button>
+    </div>
+
+    <!-- Device grid -->
+    <div class="grid" id="device-grid">
+      <p class="empty" id="empty-msg">Немає пристроїв. Додайте перший!</p>
+    </div>
+
+  </main>
+
+  <!-- Modal: add / edit device -->
+  <dialog class="modal" id="device-modal">
+    <form class="modal__form" id="device-form" method="dialog">
+      <h2 class="modal__title" id="modal-title">Новий пристрій</h2>
+
+      <label class="field">
+        <span class="field__label">Назва</span>
+        <input class="field__input" id="f-name" type="text"
+               placeholder="Сервер 1" required />
+      </label>
+
+      <label class="field">
+        <span class="field__label">IP-адреса або ім'я хоста</span>
+        <input class="field__input" id="f-host" type="text"
+               placeholder="192.168.1.1" required />
+      </label>
+
+      <label class="field">
+        <span class="field__label">Тип пристрою</span>
+        <select class="field__input" id="f-type">
+          <option value="server">Сервер</option>
+          <option value="router">Маршрутизатор</option>
+          <option value="switch">Комутатор</option>
+          <option value="printer">Принтер</option>
+          <option value="computer">Комп'ютер</option>
+          <option value="camera">IP-камера</option>
+          <option value="other">Інший</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Метод перевірки</span>
+        <select class="field__input" id="f-method">
+          <option value="ping">Ping (ICMP)</option>
+          <option value="snmp">SNMP</option>
+        </select>
+      </label>
+
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="btn-cancel">Скасувати</button>
+        <button type="submit" class="btn btn--primary" id="btn-save">Зберегти</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Modal: device detail / history chart -->
+  <dialog class="modal modal--wide" id="detail-modal">
+    <div class="modal__form">
+      <h2 class="modal__title" id="detail-name">Деталі пристрою</h2>
+      <p class="detail-host" id="detail-host"></p>
+
+      <div class="detail-meta" id="detail-meta"></div>
+
+      <h3 class="chart-title">Доступність за 24 год</h3>
+      <div class="chart-wrap">
+        <canvas id="history-chart"></canvas>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="btn-detail-close">Закрити</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toasts" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
