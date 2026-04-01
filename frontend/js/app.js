@@ -30,6 +30,7 @@ const fName         = document.getElementById('f-name');
 const fHost         = document.getElementById('f-host');
 const fType         = document.getElementById('f-type');
 const fMethod       = document.getElementById('f-method');
+const btnSave       = document.getElementById('btn-save');
 
 const detailModal   = document.getElementById('detail-modal');
 const detailName    = document.getElementById('detail-name');
@@ -52,6 +53,9 @@ function connectWS() {
         const prev = devices[idx].status;
         devices[idx] = msg.device;
         if (prev !== msg.device.status) showToast(msg.device);
+      } else {
+        // FIX: пристрій доданий з іншого клієнта — додаємо в список
+        devices.push(msg.device);
       }
       renderAll();
     }
@@ -77,17 +81,9 @@ function renderAll() {
   const list = filtered();
   emptyMsg.style.display = list.length ? 'none' : '';
 
-  // Remove cards for deleted devices
-  [...grid.querySelectorAll('.card')].forEach(el => {
-    if (!list.find(d => d.id === +el.dataset.id)) el.remove();
-  });
-
-  list.forEach(d => {
-    const existing = grid.querySelector(`.card[data-id="${d.id}"]`);
-    const card = buildCard(d);
-    if (existing) grid.replaceChild(card, existing);
-    else grid.appendChild(card);
-  });
+  // FIX: видаляємо старі картки і перебудовуємо в правильному порядку
+  [...grid.querySelectorAll('.card')].forEach(el => el.remove());
+  list.forEach(d => grid.appendChild(buildCard(d)));
 }
 
 function buildCard(d) {
@@ -98,7 +94,7 @@ function buildCard(d) {
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label', `${d.name} — ${STATUS_LABELS[d.status] ?? d.status}`);
 
-  const rtt = d.response_time != null ? `${d.response_time} мс` : '—';
+  const rtt  = d.response_time != null ? `${d.response_time} мс` : '—';
   const last = d.last_seen
     ? new Date(d.last_seen).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
     : '—';
@@ -109,8 +105,8 @@ function buildCard(d) {
       <div class="card__name">${esc(d.name)}</div>
       <div class="card__meta">
         <span class="card__host">${esc(d.host)}</span>
-        <span class="card__badge">${TYPE_LABELS[d.device_type] ?? d.device_type}</span>
-        <span class="card__badge">${METHOD_LABELS[d.check_method] ?? d.check_method}</span>
+        <span class="card__badge">${TYPE_LABELS[d.device_type] ?? esc(d.device_type)}</span>
+        <span class="card__badge">${METHOD_LABELS[d.check_method] ?? esc(d.check_method)}</span>
       </div>
     </div>
     <div>
@@ -118,7 +114,7 @@ function buildCard(d) {
       <div class="card__rtt">${rtt}</div>
     </div>
     <div class="card__actions">
-      <button class="btn btn--ghost btn--sm js-edit"   data-id="${d.id}">Редагувати</button>
+      <button class="btn btn--ghost btn--sm js-edit"    data-id="${d.id}">Редагувати</button>
       <button class="btn btn--danger btn--sm js-delete" data-id="${d.id}">Видалити</button>
     </div>
   `;
@@ -174,15 +170,39 @@ function openEdit(id) {
 
 async function saveDevice(e) {
   e.preventDefault();
-  const body = { name: fName.value.trim(), host: fHost.value.trim(), device_type: fType.value, check_method: fMethod.value };
+
+  // FIX: блокуємо кнопку на час запиту
+  btnSave.disabled = true;
+  const origText = btnSave.textContent;
+  btnSave.textContent = 'Збереження…';
+
+  const body = {
+    name: fName.value.trim(),
+    host: fHost.value.trim(),
+    device_type: fType.value,
+    check_method: fMethod.value,
+  };
+
   try {
     if (editingId) {
-      const res = await fetch(`/api/devices/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(`/api/devices/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      // FIX: перевіряємо статус відповіді
+      if (!res.ok) throw new Error(`Помилка сервера: ${res.status}`);
       const updated = await res.json();
       const idx = devices.findIndex(d => d.id === editingId);
       if (idx !== -1) devices[idx] = updated;
     } else {
-      const res = await fetch('/api/devices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/api/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      // FIX: перевіряємо статус відповіді
+      if (!res.ok) throw new Error(`Помилка сервера: ${res.status}`);
       const created = await res.json();
       devices.push(created);
     }
@@ -190,14 +210,24 @@ async function saveDevice(e) {
     renderAll();
   } catch (err) {
     alert('Помилка збереження: ' + err.message);
+  } finally {
+    // FIX: розблоковуємо кнопку незалежно від результату
+    btnSave.disabled = false;
+    btnSave.textContent = origText;
   }
 }
 
 async function deleteDevice(id) {
   if (!confirm('Видалити пристрій?')) return;
-  await fetch(`/api/devices/${id}`, { method: 'DELETE' });
-  devices = devices.filter(d => d.id !== id);
-  renderAll();
+  // FIX: обробляємо помилки мережі та сервера
+  try {
+    const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error(`Помилка сервера: ${res.status}`);
+    devices = devices.filter(d => d.id !== id);
+    renderAll();
+  } catch (err) {
+    alert('Помилка видалення: ' + err.message);
+  }
 }
 
 // ── Detail / history modal ─────────────────────────────────────────────────────
@@ -208,25 +238,31 @@ async function openDetail(id) {
   detailName.textContent = d.name;
   detailHost.textContent = d.host;
 
-  const [histRes, uptimeRes] = await Promise.all([
-    fetch(`/api/devices/${id}/history`).then(r => r.json()),
-    fetch(`/api/devices/${id}/uptime`).then(r => r.json()),
-  ]);
+  // FIX: обробляємо помилки запитів
+  let histData = [], uptimeData = { uptime: null };
+  try {
+    [histData, uptimeData] = await Promise.all([
+      fetch(`/api/devices/${id}/history`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      fetch(`/api/devices/${id}/uptime`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    ]);
+  } catch {
+    // показуємо модалку з тим що є, без графіку
+  }
 
-  const uptime = uptimeRes.uptime != null ? `${uptimeRes.uptime}%` : '—';
+  const uptime = uptimeData.uptime != null ? `${uptimeData.uptime}%` : '—';
   const rtt    = d.response_time != null ? `${d.response_time} мс` : '—';
   const last   = d.last_seen ? new Date(d.last_seen).toLocaleString('uk-UA') : '—';
 
   detailMeta.innerHTML = `
-    <div class="detail-tag"><span>Тип: </span><strong>${TYPE_LABELS[d.device_type] ?? d.device_type}</strong></div>
-    <div class="detail-tag"><span>Метод: </span><strong>${METHOD_LABELS[d.check_method] ?? d.check_method}</strong></div>
+    <div class="detail-tag"><span>Тип: </span><strong>${TYPE_LABELS[d.device_type] ?? esc(d.device_type)}</strong></div>
+    <div class="detail-tag"><span>Метод: </span><strong>${METHOD_LABELS[d.check_method] ?? esc(d.check_method)}</strong></div>
     <div class="detail-tag"><span>Статус: </span><strong>${STATUS_LABELS[d.status] ?? d.status}</strong></div>
     <div class="detail-tag"><span>RTT: </span><strong>${rtt}</strong></div>
-    <div class="detail-tag"><span>Uptime 24 год: </span><strong>${uptime}</strong></div>
+    <div class="detail-tag"><span>Доступність 24 год: </span><strong>${uptime}</strong></div>
     <div class="detail-tag"><span>Остання відповідь: </span><strong>${last}</strong></div>
   `;
 
-  renderChart(histRes);
+  renderChart(histData);
   detailModal.showModal();
 }
 
@@ -240,9 +276,13 @@ function renderChart(history) {
     return;
   }
 
-  const labels = history.map(h => new Date(h.checked_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }));
+  const labels = history.map(h =>
+    new Date(h.checked_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+  );
   const rtts   = history.map(h => h.response_time ?? null);
-  const colors = history.map(h => h.status === 'up' ? '#22c55e' : h.status === 'unstable' ? '#f59e0b' : '#ef4444');
+  const colors = history.map(h =>
+    h.status === 'up' ? '#22c55e' : h.status === 'unstable' ? '#f59e0b' : '#ef4444'
+  );
 
   historyChart = new Chart(ctx, {
     type: 'bar',
@@ -280,13 +320,17 @@ function showToast(device) {
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────────
-searchInput.addEventListener('input',  renderAll);
-filterType.addEventListener('change',  renderAll);
+searchInput.addEventListener('input',   renderAll);
+filterType.addEventListener('change',   renderAll);
 filterStatus.addEventListener('change', renderAll);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function esc(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
