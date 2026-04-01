@@ -1,30 +1,3 @@
-"""
-Адаптивний алгоритм опитування мережевих пристроїв
-====================================================
-
-Принцип роботи:
-  Кожен пристрій має власний таймер. Після кожної перевірки
-  інтервал до наступного опитування розраховується динамічно
-  залежно від поточної стабільності пристрою.
-
-Правила зміни інтервалу:
-  ┌──────────────────────────────────┬──────────────┐
-  │ Стан                             │ Інтервал (с) │
-  ├──────────────────────────────────┼──────────────┤
-  │ Початковий / невідомий           │      60      │
-  │ Перший збій (status → unstable)  │      15      │
-  │ Підтверджений збій (≥2 failures) │      30      │
-  │ Стабільна робота (≥5 successes)  │     120      │
-  └──────────────────────────────────┴──────────────┘
-
-Обґрунтування ефективності:
-  • Стабільні пристрої опитуються рідше → менше мережевого трафіку (~40 %).
-  • Нестабільні пристрої опитуються частіше (15 с) → швидке виявлення відмови.
-  • Підтверджено «вниз» → 30 с, щоб не перевантажувати мережу зайвими запитами.
-  • Порівняно з Round-Robin (фіксований інтервал):
-    - економія ~40 % запитів у стабільній мережі;
-    - у 4 рази швидше виявлення першого збою.
-"""
 
 import platform
 import subprocess
@@ -36,10 +9,9 @@ from typing import Callable, Optional, Tuple
 import database
 
 
-# ── ICMP ping ──────────────────────────────────────────────────────────────────
 
 def ping_host(host: str) -> Tuple[bool, Optional[float]]:
-    """Повертає (доступний, час_відповіді_мс)."""
+
     if platform.system().lower() == "windows":
         cmd = ["ping", "-n", "1", "-w", "1000", host]
     else:
@@ -56,21 +28,20 @@ def ping_host(host: str) -> Tuple[bool, Optional[float]]:
         return False, None
 
 
-# ── Adaptive poller ────────────────────────────────────────────────────────────
 
 class AdaptivePoller:
     INTERVAL_DEFAULT  = 60
     INTERVAL_UNSTABLE = 15
     INTERVAL_DOWN     = 30
-    INTERVAL_STABLE   = 120
-    STABLE_THRESHOLD  = 5   # consecutive successes → stable
+    INTERVAL_STABLE   = 120    
+    STABLE_THRESHOLD  = 5
+
 
     def __init__(self, on_change: Callable[[dict], None]) -> None:
         self._on_change = on_change
         self._timers: dict[int, threading.Timer] = {}
         self._running = False
 
-    # ── lifecycle ──────────────────────────────────────────────────────────────
 
     def start(self) -> None:
         self._running = True
@@ -92,7 +63,6 @@ class AdaptivePoller:
             self._timers[device_id].cancel()
             del self._timers[device_id]
 
-    # ── internal ───────────────────────────────────────────────────────────────
 
     def _schedule(self, device_id: int, delay: Optional[int] = None) -> None:
         if device_id in self._timers:

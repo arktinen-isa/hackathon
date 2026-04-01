@@ -45,7 +45,7 @@ def init_db() -> None:
         """)
 
 
-# ── devices ──────────────────────────────────────────────────────────────────
+
 
 def get_all_devices() -> list[dict]:
     with _connect() as conn:
@@ -87,7 +87,7 @@ def delete_device(device_id: int) -> None:
         conn.commit()
 
 
-# ── history ───────────────────────────────────────────────────────────────────
+
 
 def add_history(device_id: int, status: str, response_time: Optional[float]) -> None:
     with _lock, _connect() as conn:

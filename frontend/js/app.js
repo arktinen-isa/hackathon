@@ -1,20 +1,22 @@
 'use strict';
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-const TYPE_LABELS = {
-  server: 'Сервер', router: 'Маршрутизатор', switch: 'Комутатор',
-  printer: 'Принтер', computer: "Комп'ютер", camera: 'IP-камера', other: 'Інший',
+const ICONS = {
+  server: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg> Сервер',
+  router: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="11" width="18" height="10" rx="2"></rect><line x1="12" y1="11" x2="12" y2="3"></line><line x1="8" y1="7" x2="8" y2="11"></line><line x1="16" y1="7" x2="16" y2="11"></line></svg> Маршрутизатор',
+  switch: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="8" width="20" height="8" rx="2"></rect><line x1="6" y1="12" x2="6.01" y2="12"></line><line x1="10" y1="12" x2="10.01" y2="12"></line><line x1="14" y1="12" x2="14.01" y2="12"></line></svg> Комутатор',
+  printer: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Принтер',
+  computer: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> Комп\'ютер',
+  camera: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg> IP-камера',
+  other: '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg> Інший',
 };
 const STATUS_LABELS = { up: 'Активний', down: 'Недоступний', unstable: 'Нестабільний', unknown: 'Невідомо' };
 const METHOD_LABELS = { ping: 'Ping (ICMP)', snmp: 'SNMP' };
 
-// ── State ──────────────────────────────────────────────────────────────────────
 let devices = [];
 let editingId = null;
 let historyChart = null;
 let scanTimer = null;
 
-// ── DOM refs ───────────────────────────────────────────────────────────────────
 const grid          = document.getElementById('device-grid');
 const emptyMsg      = document.getElementById('empty-msg');
 const searchInput   = document.getElementById('search');
@@ -37,24 +39,20 @@ const detailModal   = document.getElementById('detail-modal');
 const detailName    = document.getElementById('detail-name');
 const detailHost    = document.getElementById('detail-host');
 const detailMeta    = document.getElementById('detail-meta');
-const btnThemeToggle = document.getElementById('btn-theme-toggle');
 const scanModal     = document.getElementById('scan-modal');
 const scanResults   = document.getElementById('scan-results');
 const scanProgress  = document.getElementById('scan-progress');
 const scanProgressBar = document.getElementById('scan-progress-bar');
 const btnScan       = document.getElementById('btn-scan');
 const btnScanClose  = document.getElementById('btn-scan-close');
+const scanSubnetInput = document.getElementById('scan-subnet');
 
-// ── WebSocket ──────────────────────────────────────────────────────────────────
 function connectWS() {
-  console.log("WebSocket: Connecting to /ws...");
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
 
-  ws.onopen = () => console.log("WebSocket: Connected.");
   ws.onmessage = ({ data }) => {
     const msg = JSON.parse(data);
-    console.log("WebSocket: Message received:", msg.type);
     if (msg.type === 'init') {
       devices = msg.devices;
       renderAll();
@@ -71,27 +69,27 @@ function connectWS() {
     }
   };
 
-  ws.onerror = (err) => console.error("WebSocket Error:", err);
   ws.onclose = () => {
-    console.warn("WebSocket Closed. Reconnecting...");
     setTimeout(connectWS, 3000);
   };
 }
 
 async function initData() {
-  console.log("Fetching initial devices via API...");
   try {
     const res = await fetch('/api/devices');
     const data = await res.json();
-    console.log("API: Devices fetched:", data.length);
     devices = data;
     renderAll();
+    
+    const resSubnet = await fetch('/api/scan/default_subnet');
+    const dataSubnet = await resSubnet.json();
+    if(scanSubnetInput && dataSubnet.subnet) {
+      scanSubnetInput.value = dataSubnet.subnet;
+    }
   } catch (err) {
-    console.error("API Error fetching initial devices:", err);
   }
 }
 
-// ── Render ─────────────────────────────────────────────────────────────────────
 function filtered() {
   const q    = searchInput.value.toLowerCase();
   const type = filterType.value;
@@ -108,7 +106,6 @@ function renderAll() {
   const list = filtered();
   emptyMsg.style.display = list.length ? 'none' : '';
 
-  // FIX: видаляємо старі картки і перебудовуємо в правильному порядку
   [...grid.querySelectorAll('.card')].forEach(el => el.remove());
   list.forEach(d => grid.appendChild(buildCard(d)));
 }
@@ -126,13 +123,15 @@ function buildCard(d) {
     ? new Date(d.last_seen).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
     : '—';
 
+  const typeIcon = ICONS[d.device_type] || ICONS.other;
+
   card.innerHTML = `
     <span class="card__indicator card__indicator--${d.status}"></span>
     <div class="card__body">
-      <div class="card__name">${esc(d.name)}</div>
+      <div class="card__name" title="${esc(d.name).replace(/"/g, '&quot;')}">${esc(d.name)}</div>
       <div class="card__meta">
+        <span class="card__badge" style="display:inline-flex;align-items:center;gap:4px;">${typeIcon}</span>
         <span class="card__host">${esc(d.host)}</span>
-        <span class="card__badge">${TYPE_LABELS[d.device_type] ?? esc(d.device_type)}</span>
         <span class="card__badge">${METHOD_LABELS[d.check_method] ?? esc(d.check_method)}</span>
       </div>
     </div>
@@ -169,26 +168,13 @@ function updateStats() {
   if (statDown) statDown.textContent  = down;
 }
 
-// ── Add / Edit modal ───────────────────────────────────────────────────────────
 document.getElementById('btn-add').addEventListener('click', openAdd);
 document.getElementById('btn-cancel').addEventListener('click', () => deviceModal.close());
 document.getElementById('btn-detail-close').addEventListener('click', () => detailModal.close());
 btnScan.addEventListener('click', startScan);
 btnScanClose.addEventListener('click', stopScanPolling);
-btnThemeToggle.addEventListener('click', toggleTheme);
 deviceForm.addEventListener('submit', saveDevice);
 
-// ── Theme toggle ───────────────────────────────────────────────────────────────
-function initTheme() {
-  if (localStorage.getItem('theme') === 'light') {
-    document.body.classList.add('light-theme');
-  }
-}
-
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light-theme');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
-}
 
 function openAdd() {
   editingId = null;
@@ -212,7 +198,6 @@ function openEdit(id) {
 async function saveDevice(e) {
   e.preventDefault();
 
-  // FIX: блокуємо кнопку на час запиту
   btnSave.disabled = true;
   const origText = btnSave.textContent;
   btnSave.textContent = 'Збереження…';
@@ -231,7 +216,6 @@ async function saveDevice(e) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      // FIX: перевіряємо статус відповіді
       if (!res.ok) throw new Error(`Помилка сервера: ${res.status}`);
       const updated = await res.json();
       const idx = devices.findIndex(d => d.id === editingId);
@@ -242,7 +226,6 @@ async function saveDevice(e) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      // FIX: перевіряємо статус відповіді
       if (!res.ok) throw new Error(`Помилка сервера: ${res.status}`);
       const created = await res.json();
       devices.push(created);
@@ -252,21 +235,26 @@ async function saveDevice(e) {
   } catch (err) {
     alert('Помилка збереження: ' + err.message);
   } finally {
-    // FIX: розблоковуємо кнопку незалежно від результату
     btnSave.disabled = false;
     btnSave.textContent = origText;
   }
 }
 
-// ── Scan ───────────────────────────────────────────────────────────────────────
 async function startScan() {
   scanResults.innerHTML = '<p class="empty">Пошук пристроїв у підмережі...</p>';
   scanProgress.style.display = 'block';
   scanProgressBar.style.width = '0%';
   scanModal.showModal();
 
+  const subnetValue = scanSubnetInput ? scanSubnetInput.value.trim() : null;
+
   try {
-    await fetch('/api/scan/start', { method: 'POST' });
+    const payload = subnetValue ? JSON.stringify({ subnet: subnetValue }) : JSON.stringify({});
+    await fetch('/api/scan/start', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+    });
     pollScan();
   } catch (err) {
     scanResults.innerHTML = `<p class="empty" style="color: var(--c-down)">Помилка запуску: ${err.message}</p>`;
@@ -293,11 +281,12 @@ async function pollScan() {
         item.className = 'scan-item';
         
         const exists = devices.some(d => d.host === dev.ip);
+        const typeLabel = (ICONS[dev.device_type] || ICONS.other).replace(/<svg.*?<\/svg>/g, '').trim();
         
         item.innerHTML = `
           <div class="scan-item__info">
             <div class="scan-item__ip">${dev.ip}</div>
-            <div class="scan-item__meta">${esc(dev.name)}</div>
+            <div class="scan-item__meta">${esc(dev.name)} • ${typeLabel}</div>
           </div>
           <button class="btn btn--primary btn--sm" id="add-scan-${dev.ip.replace(/\./g, '-')}" ${exists ? 'disabled' : ''}>
             ${exists ? 'Додано' : 'Додати'}
@@ -323,7 +312,6 @@ async function pollScan() {
         scanProgress.style.display = 'none';
     }
   } catch (err) {
-    console.error('Scan polling error:', err);
   }
 }
 
@@ -335,7 +323,7 @@ async function addFromScan(dev) {
       body: JSON.stringify({
         name: dev.name,
         host: dev.ip,
-        device_type: 'other',
+        device_type: dev.device_type || 'other',
         check_method: 'ping'
       }),
     });
@@ -343,7 +331,7 @@ async function addFromScan(dev) {
     const created = await res.json();
     devices.push(created);
     renderAll();
-    startScan(); // Refresh results to show "Added"
+    startScan();
   } catch (err) {
     alert('Не вдалося додати пристрій');
   }
@@ -351,7 +339,6 @@ async function addFromScan(dev) {
 
 async function deleteDevice(id) {
   if (!confirm('Видалити пристрій?')) return;
-  // FIX: обробляємо помилки мережі та сервера
   try {
     const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 404) throw new Error(`Помилка сервера: ${res.status}`);
@@ -362,7 +349,6 @@ async function deleteDevice(id) {
   }
 }
 
-// ── Detail / history modal ─────────────────────────────────────────────────────
 async function openDetail(id) {
   const d = devices.find(d => d.id === id);
   if (!d) return;
@@ -370,7 +356,6 @@ async function openDetail(id) {
   detailName.textContent = d.name;
   detailHost.textContent = d.host;
 
-  // FIX: обробляємо помилки запитів
   let histData = [], uptimeData = { uptime: null };
   try {
     [histData, uptimeData] = await Promise.all([
@@ -378,15 +363,16 @@ async function openDetail(id) {
       fetch(`/api/devices/${id}/uptime`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
     ]);
   } catch {
-    // показуємо модалку з тим що є, без графіку
   }
 
   const uptime = uptimeData.uptime != null ? `${uptimeData.uptime}%` : '—';
   const rtt    = d.response_time != null ? `${d.response_time} мс` : '—';
   const last   = d.last_seen ? new Date(d.last_seen).toLocaleString('uk-UA') : '—';
 
+  const typeLabel = (ICONS[d.device_type] || ICONS.other).replace(/<svg.*?<\/svg>/g, '').trim();
+
   detailMeta.innerHTML = `
-    <div class="detail-tag"><span>Тип: </span><strong>${TYPE_LABELS[d.device_type] ?? esc(d.device_type)}</strong></div>
+    <div class="detail-tag"><span>Тип: </span><strong>${typeLabel}</strong></div>
     <div class="detail-tag"><span>Метод: </span><strong>${METHOD_LABELS[d.check_method] ?? esc(d.check_method)}</strong></div>
     <div class="detail-tag"><span>Статус: </span><strong>${STATUS_LABELS[d.status] ?? d.status}</strong></div>
     <div class="detail-tag"><span>RTT: </span><strong>${rtt}</strong></div>
@@ -440,7 +426,6 @@ function renderChart(history) {
   });
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────────────
 function showToast(device) {
   const container = document.getElementById('toasts');
   const toast = document.createElement('div');
@@ -451,12 +436,10 @@ function showToast(device) {
   setTimeout(() => toast.remove(), 5000);
 }
 
-// ── Filters ────────────────────────────────────────────────────────────────────
 searchInput.addEventListener('input',   renderAll);
 filterType.addEventListener('change',   renderAll);
 filterStatus.addEventListener('change', renderAll);
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -465,7 +448,5 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-initTheme();
 initData();
 connectWS();

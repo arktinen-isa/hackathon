@@ -8,14 +8,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import database
-from models import DeviceCreate, DeviceUpdate
+from models import DeviceCreate, DeviceUpdate, ScanRequest
 from poller import AdaptivePoller
 from scanner import scanner
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
-
-
-# ── WebSocket broadcast ────────────────────────────────────────────────────────
 
 class _WsManager:
     def __init__(self) -> None:
@@ -41,10 +38,8 @@ class _WsManager:
             if ws in self._clients:
                 self._clients.remove(ws)
 
-
 ws_manager = _WsManager()
 _loop: Optional[asyncio.AbstractEventLoop] = None
-
 
 def _on_status_change(device: dict) -> None:
     if _loop and not _loop.is_closed():
@@ -53,11 +48,7 @@ def _on_status_change(device: dict) -> None:
             _loop,
         )
 
-
 poller = AdaptivePoller(on_change=_on_status_change)
-
-
-# ── lifespan ───────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,26 +59,17 @@ async def lifespan(app: FastAPI):
     yield
     poller.stop()
 
-
 app = FastAPI(title="Моніторинг мережевих пристроїв", lifespan=lifespan)
 
-# Static files (CSS / JS)
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-
-
-# ── pages ──────────────────────────────────────────────────────────────────────
 
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse(FRONTEND_DIR / "index.html")
 
-
-# ── REST: devices ──────────────────────────────────────────────────────────────
-
 @app.get("/api/devices")
 async def list_devices():
     return database.get_all_devices()
-
 
 @app.post("/api/devices", status_code=201)
 async def create_device(data: DeviceCreate):
@@ -100,7 +82,6 @@ async def create_device(data: DeviceCreate):
     poller.add_device(device)
     return device
 
-
 @app.get("/api/devices/{device_id}")
 async def get_device(device_id: int):
     device = database.get_device(device_id)
@@ -108,16 +89,13 @@ async def get_device(device_id: int):
         raise HTTPException(404, "Пристрій не знайдено")
     return device
 
-
 @app.patch("/api/devices/{device_id}")
 async def update_device(device_id: int, data: DeviceUpdate):
     if not database.get_device(device_id):
         raise HTTPException(404, "Пристрій не знайдено")
     fields = data.dict(exclude_none=True)
-    # Pydantic enums → plain strings
     fields = {k: (v.value if hasattr(v, "value") else v) for k, v in fields.items()}
     return database.update_device(device_id, **fields)
-
 
 @app.delete("/api/devices/{device_id}", status_code=204)
 async def delete_device(device_id: int):
@@ -126,15 +104,11 @@ async def delete_device(device_id: int):
     poller.remove_device(device_id)
     database.delete_device(device_id)
 
-
-# ── REST: history & stats ──────────────────────────────────────────────────────
-
 @app.get("/api/devices/{device_id}/history")
 async def get_history(device_id: int, hours: int = 24):
     if not database.get_device(device_id):
         raise HTTPException(404, "Пристрій не знайдено")
     return database.get_device_history(device_id, hours)
-
 
 @app.get("/api/devices/{device_id}/uptime")
 async def get_uptime(device_id: int, hours: int = 24):
@@ -142,17 +116,13 @@ async def get_uptime(device_id: int, hours: int = 24):
         raise HTTPException(404, "Пристрій не знайдено")
     return {"uptime": database.get_uptime_percent(device_id, hours), "hours": hours}
 
-
-# ── REST: scan ─────────────────────────────────────────────────────────────────
-
 @app.post("/api/scan/start")
-async def start_scan():
+async def start_scan(request: ScanRequest = None):
     if scanner.is_scanning:
         return {"status": "already_scanning"}
-    # Run scan in background
-    asyncio.create_task(scanner.scan_network())
+    subnet = request.subnet if request else None
+    asyncio.create_task(scanner.scan_network(subnet))
     return {"status": "started"}
-
 
 @app.get("/api/scan/status")
 async def get_scan_status():
@@ -162,8 +132,9 @@ async def get_scan_status():
         "found": scanner.found_devices
     }
 
-
-# ── WebSocket ──────────────────────────────────────────────────────────────────
+@app.get("/api/scan/default_subnet")
+async def get_default_subnet():
+    return {"subnet": scanner.get_subnet()}
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):

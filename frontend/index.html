@@ -16,22 +16,18 @@
       </h1>
       <div class="header__actions">
         <div class="header__stats">
-          <span class="stat stat--up"   id="stat-up">0</span>
+          <span class="stat stat--up" id="stat-up">0</span>
           <span class="stat stat--down" id="stat-down">0</span>
         </div>
-        <button class="btn btn--ghost btn--icon" id="btn-theme-toggle" title="Перемикач теми">
-          <svg viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
-        </button>
       </div>
     </div>
   </header>
 
   <main class="main">
 
-    <!-- Toolbar -->
     <div class="toolbar">
-      <input class="toolbar__search" id="search" type="search"
-             placeholder="Пошук за назвою або IP…" />
+      <input class="toolbar__search" id="search" type="search" placeholder="Пошук за назвою або IP…" />
+      
       <select class="toolbar__filter" id="filter-type">
         <option value="">Всі типи</option>
         <option value="server">Сервер</option>
@@ -42,6 +38,7 @@
         <option value="camera">IP-камера</option>
         <option value="other">Інший</option>
       </select>
+      
       <select class="toolbar__filter" id="filter-status">
         <option value="">Всі статуси</option>
         <option value="up">Активний</option>
@@ -49,32 +46,33 @@
         <option value="unstable">Нестабільний</option>
         <option value="unknown">Невідомо</option>
       </select>
+
+      <div class="toolbar__scan-group">
+        <input type="text" id="scan-subnet" class="toolbar__search scan-subnet-input" placeholder="192.168.1.0/24" />
+        <button class="btn btn--primary" id="btn-scan" title="Пошук у мережі">🔍 Сканувати</button>
+      </div>
+
       <button class="btn btn--primary" id="btn-add" title="Додати вручну">+ Додати</button>
-      <button class="btn btn--ghost" id="btn-scan" title="Пошук у мережі">🔍 Сканувати</button>
     </div>
 
-    <!-- Device grid -->
     <div class="grid" id="device-grid">
       <p class="empty" id="empty-msg">Немає пристроїв. Додайте перший!</p>
     </div>
 
   </main>
 
-  <!-- Modal: add / edit device -->
   <dialog class="modal" id="device-modal">
     <form class="modal__form" id="device-form" method="dialog">
       <h2 class="modal__title" id="modal-title">Новий пристрій</h2>
 
       <label class="field">
         <span class="field__label">Назва</span>
-        <input class="field__input" id="f-name" type="text"
-               placeholder="Сервер 1" required />
+        <input class="field__input" id="f-name" type="text" placeholder="Сервер 1" required />
       </label>
 
       <label class="field">
-        <span class="field__label">IP-адреса або ім'я хоста</span>
-        <input class="field__input" id="f-host" type="text"
-               placeholder="192.168.1.1" required />
+        <span class="field__label">IP-адреса</span>
+        <input class="field__input" id="f-host" type="text" placeholder="192.168.1.1" required pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$" title="Формат IPv4 (наприклад: 192.168.1.1)" />
       </label>
 
       <label class="field">
@@ -105,7 +103,6 @@
     </form>
   </dialog>
 
-  <!-- Modal: device detail / history chart -->
   <dialog class="modal modal--wide" id="detail-modal">
     <div class="modal__form">
       <h2 class="modal__title" id="detail-name">Деталі пристрою</h2>
@@ -124,7 +121,6 @@
     </div>
   </dialog>
 
-  <!-- Modal: network scan -->
   <dialog class="modal" id="scan-modal">
     <div class="modal__form">
       <h2 class="modal__title">Пошук у локальній мережі</h2>
@@ -134,7 +130,7 @@
       </div>
 
       <div class="scan-list" id="scan-results">
-        <!-- Результати з'являться тут -->
+        
       </div>
 
       <div class="modal__actions">
@@ -143,7 +139,6 @@
     </div>
   </dialog>
 
-  <!-- Toast notifications -->
   <div class="toast-container" id="toasts" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
