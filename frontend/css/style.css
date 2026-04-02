@@ -262,7 +262,7 @@ body {
 ═══════════════════════════════════════════════════════════════ */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
   gap: .875rem;
   margin-bottom: 1.25rem;
 }
@@ -310,6 +310,8 @@ body {
   text-transform: uppercase;
   letter-spacing: .04em;
   margin-top: .2rem;
+  hyphens: auto;
+  overflow-wrap: break-word;
 }
 
 /* ═══════════════════════════════════════════════════════════════
