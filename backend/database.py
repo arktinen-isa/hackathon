@@ -28,6 +28,14 @@ def init_db() -> None:
                 consecutive_up       INTEGER NOT NULL DEFAULT 0,
                 consecutive_down     INTEGER NOT NULL DEFAULT 0,
                 poll_interval        INTEGER NOT NULL DEFAULT 60,
+                rtt_threshold        INTEGER NOT NULL DEFAULT 100,
+                maintenance          INTEGER NOT NULL DEFAULT 0,
+                snmp_community       TEXT    NOT NULL DEFAULT 'public',
+                snmp_port            INTEGER NOT NULL DEFAULT 161,
+                cpu_usage            REAL,
+                ram_usage            REAL,
+                bandwidth_in         REAL,
+                bandwidth_out        REAL,
                 created_at           TEXT    NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -42,9 +50,46 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_history_device_time
                 ON history(device_id, checked_at);
+
+            CREATE TABLE IF NOT EXISTS events (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id    INTEGER NOT NULL,
+                device_name  TEXT    NOT NULL,
+                prev_status  TEXT,
+                new_status   TEXT    NOT NULL,
+                occurred_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_events_time
+                ON events(occurred_at DESC);
         """)
 
+    # Migrations for existing databases
+    _run_migrations()
 
+
+def _run_migrations() -> None:
+    migrations = [
+        "ALTER TABLE devices ADD COLUMN rtt_threshold INTEGER NOT NULL DEFAULT 100",
+        "ALTER TABLE devices ADD COLUMN maintenance INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE devices ADD COLUMN snmp_community TEXT NOT NULL DEFAULT 'public'",
+        "ALTER TABLE devices ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 161",
+        "ALTER TABLE devices ADD COLUMN cpu_usage REAL",
+        "ALTER TABLE devices ADD COLUMN ram_usage REAL",
+        "ALTER TABLE devices ADD COLUMN bandwidth_in REAL",
+        "ALTER TABLE devices ADD COLUMN bandwidth_out REAL",
+    ]
+    with _connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(sql)
+                conn.commit()
+            except Exception:
+                pass
+
+
+# ──────────────────────────────────────────────────────────── devices ──
 
 
 def get_all_devices() -> list[dict]:
@@ -58,11 +103,21 @@ def get_device(device_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def create_device(name: str, host: str, device_type: str, check_method: str = "ping") -> dict:
+def create_device(
+    name: str,
+    host: str,
+    device_type: str,
+    check_method: str = "ping",
+    rtt_threshold: int = 100,
+    snmp_community: str = "public",
+    snmp_port: int = 161,
+) -> dict:
     with _lock, _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO devices (name, host, device_type, check_method) VALUES (?, ?, ?, ?)",
-            (name, host, device_type, check_method),
+            """INSERT INTO devices
+               (name, host, device_type, check_method, rtt_threshold, snmp_community, snmp_port)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (name, host, device_type, check_method, rtt_threshold, snmp_community, snmp_port),
         )
         conn.commit()
         return get_device(cur.lastrowid)
@@ -87,6 +142,17 @@ def delete_device(device_id: int) -> None:
         conn.commit()
 
 
+def toggle_maintenance(device_id: int) -> Optional[dict]:
+    with _lock, _connect() as conn:
+        conn.execute(
+            "UPDATE devices SET maintenance = CASE WHEN maintenance = 0 THEN 1 ELSE 0 END WHERE id = ?",
+            (device_id,),
+        )
+        conn.commit()
+    return get_device(device_id)
+
+
+# ──────────────────────────────────────────────────────────── history ──
 
 
 def add_history(device_id: int, status: str, response_time: Optional[float]) -> None:
@@ -122,7 +188,7 @@ def get_uptime_percent(device_id: int, hours: int = 24) -> Optional[float]:
         row = conn.execute(
             """
             SELECT COUNT(*) AS total,
-                   SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up_count
+                   SUM(CASE WHEN status IN ('up', 'slow') THEN 1 ELSE 0 END) AS up_count
             FROM   history
             WHERE  device_id = ?
               AND  checked_at >= datetime('now', ? || ' hours')
@@ -132,3 +198,66 @@ def get_uptime_percent(device_id: int, hours: int = 24) -> Optional[float]:
         if row and row["total"]:
             return round(row["up_count"] / row["total"] * 100, 1)
         return None
+
+
+# ──────────────────────────────────────────────────────────── events ──
+
+
+def add_event(device_id: int, device_name: str, prev_status: Optional[str], new_status: str) -> None:
+    with _lock, _connect() as conn:
+        conn.execute(
+            "INSERT INTO events (device_id, device_name, prev_status, new_status) VALUES (?, ?, ?, ?)",
+            (device_id, device_name, prev_status, new_status),
+        )
+        conn.execute(
+            "DELETE FROM events WHERE occurred_at < datetime('now', '-48 hours')",
+        )
+        conn.commit()
+
+
+def get_recent_events(limit: int = 40) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, device_id, device_name, prev_status, new_status, occurred_at
+            FROM   events
+            ORDER  BY occurred_at DESC
+            LIMIT  ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ──────────────────────────────────────────────────────── dashboard ──
+
+
+def get_dashboard_stats() -> dict:
+    with _connect() as conn:
+        rows = conn.execute("SELECT status, response_time, maintenance FROM devices").fetchall()
+        total = len(rows)
+        counts: dict[str, int] = {}
+        rtts = []
+        maintenance_count = 0
+        for row in rows:
+            s = row["status"]
+            counts[s] = counts.get(s, 0) + 1
+            if row["maintenance"]:
+                maintenance_count += 1
+            if row["response_time"] is not None and row["status"] in ("up", "slow"):
+                rtts.append(row["response_time"])
+
+        avg_rtt = round(sum(rtts) / len(rtts), 1) if rtts else None
+        max_rtt = round(max(rtts), 1) if rtts else None
+
+        return {
+            "total": total,
+            "up": counts.get("up", 0),
+            "down": counts.get("down", 0),
+            "slow": counts.get("slow", 0),
+            "unstable": counts.get("unstable", 0),
+            "unknown": counts.get("unknown", 0),
+            "maintenance": maintenance_count,
+            "avg_rtt": avg_rtt,
+            "max_rtt": max_rtt,
+        }

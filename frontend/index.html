@@ -3,64 +3,296 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Моніторинг мережі</title>
+  <title>NetMonitor — Моніторинг мережі</title>
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
-<body>
+<body class="app">
 
-  <header class="header">
-    <div class="header__inner">
-      <h1 class="header__title">
-        <img src="/static/assets/logo.png" alt="ОБУХІВ 11" class="header__logo">
-        Моніторинг мережі
-      </h1>
-      <div class="header__actions">
-        <div class="header__stats">
-          <span class="stat stat--up" id="stat-up">0</span>
-          <span class="stat stat--down" id="stat-down">0</span>
+  <!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__brand">
+      <img src="/static/assets/logo.png" alt="logo" class="sidebar__logo" />
+      <span class="sidebar__title">NetMonitor</span>
+    </div>
+
+    <button class="sidebar__toggle" id="sidebar-toggle" title="Згорнути/розгорнути">
+      <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <nav class="sidebar__nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg class="nav-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span class="nav-label">Дашборд</span>
+      </button>
+
+      <button class="nav-item" data-view="devices">
+        <svg class="nav-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+          <line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+        </svg>
+        <span class="nav-label">Пристрої</span>
+      </button>
+
+      <button class="nav-item" data-view="topology">
+        <svg class="nav-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+          <circle cx="12" cy="5" r="2"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="19" r="2"/>
+          <line x1="12" y1="7" x2="4" y2="17"/><line x1="12" y1="7" x2="20" y2="17"/>
+          <line x1="4" y1="19" x2="20" y2="19"/>
+        </svg>
+        <span class="nav-label">Топологія</span>
+      </button>
+    </nav>
+
+    <div class="sidebar__status">
+      <div class="ws-dot" id="ws-dot"></div>
+      <span class="nav-label" id="ws-label">З'єднання…</span>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+  <div class="app-main" id="app-main">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <h1 class="topbar__title" id="view-title">Дашборд</h1>
+      <div class="topbar__right">
+        <span class="topbar__time" id="topbar-time"></span>
+      </div>
+    </header>
+
+    <!-- ─────────────── DASHBOARD VIEW ─────────────── -->
+    <section class="view" id="view-dashboard">
+
+      <!-- Stats row -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card" id="sc-total">
+          <div class="stat-card__icon stat-card__icon--total">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+              <line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-total">—</div>
+            <div class="stat-card__label">Всього</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="sc-up">
+          <div class="stat-card__icon stat-card__icon--up">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-up">—</div>
+            <div class="stat-card__label">Активні</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="sc-down">
+          <div class="stat-card__icon stat-card__icon--down">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-down">—</div>
+            <div class="stat-card__label">Недоступні</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="sc-slow">
+          <div class="stat-card__icon stat-card__icon--slow">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-slow">—</div>
+            <div class="stat-card__label">Повільні</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="sc-maint">
+          <div class="stat-card__icon stat-card__icon--maint">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-maint">—</div>
+            <div class="stat-card__label">Обслуговування</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="sc-rtt">
+          <div class="stat-card__icon stat-card__icon--rtt">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+          <div class="stat-card__body">
+            <div class="stat-card__value" id="s-rtt">—</div>
+            <div class="stat-card__label">Сер. RTT (мс)</div>
+          </div>
         </div>
       </div>
-    </div>
-  </header>
 
-  <main class="main">
+      <!-- Charts row -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-card__header">
+            <h3 class="chart-card__title">Стан мережі</h3>
+          </div>
+          <div class="donut-wrap">
+            <canvas id="donut-chart"></canvas>
+            <div class="donut-center" id="donut-center">
+              <div class="donut-center__val" id="donut-pct">—</div>
+              <div class="donut-center__lbl">online</div>
+            </div>
+          </div>
+        </div>
 
-    <div class="toolbar">
-      <input class="toolbar__search" id="search" type="search" placeholder="Пошук за назвою або IP…" />
-      
-      <select class="toolbar__filter" id="filter-type">
-        <option value="">Всі типи</option>
-        <option value="server">Сервер</option>
-        <option value="router">Маршрутизатор</option>
-        <option value="switch">Комутатор</option>
-        <option value="printer">Принтер</option>
-        <option value="computer">Комп'ютер</option>
-        <option value="camera">IP-камера</option>
-        <option value="other">Інший</option>
-      </select>
-      
-      <select class="toolbar__filter" id="filter-status">
-        <option value="">Всі статуси</option>
-        <option value="up">Активний</option>
-        <option value="down">Недоступний</option>
-        <option value="unstable">Нестабільний</option>
-        <option value="unknown">Невідомо</option>
-      </select>
-
-      <div class="toolbar__scan-group">
-        <input type="text" id="scan-subnet" class="toolbar__search scan-subnet-input" placeholder="192.168.1.0/24" />
-        <button class="btn btn--primary" id="btn-scan" title="Пошук у мережі">🔍 Сканувати</button>
+        <div class="chart-card chart-card--wide">
+          <div class="chart-card__header">
+            <h3 class="chart-card__title">RTT за останню годину</h3>
+            <select class="chart-select" id="rtt-device-select">
+              <option value="">Оберіть пристрій</option>
+            </select>
+          </div>
+          <div class="rtt-chart-wrap">
+            <canvas id="rtt-chart"></canvas>
+          </div>
+        </div>
       </div>
 
-      <button class="btn btn--primary" id="btn-add" title="Додати вручну">+ Додати</button>
-    </div>
+      <!-- Device table -->
+      <div class="table-card">
+        <div class="table-card__header">
+          <h3 class="chart-card__title">Стан пристроїв</h3>
+          <div class="table-card__controls">
+            <input type="search" id="table-search" class="table-search" placeholder="Пошук…" />
+            <select id="table-filter" class="table-filter">
+              <option value="">Всі статуси</option>
+              <option value="up">Активні</option>
+              <option value="down">Недоступні</option>
+              <option value="slow">Повільні</option>
+              <option value="unstable">Нестабільні</option>
+              <option value="unknown">Невідомо</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>Пристрій</th>
+                <th>IP-адреса</th>
+                <th>Тип</th>
+                <th>Статус</th>
+                <th>RTT</th>
+                <th>Доступність 24 год</th>
+                <th>Остання відповідь</th>
+                <th>Режим</th>
+              </tr>
+            </thead>
+            <tbody id="device-tbody"></tbody>
+          </table>
+        </div>
+      </div>
 
-    <div class="grid" id="device-grid">
-      <p class="empty" id="empty-msg">Немає пристроїв. Додайте перший!</p>
-    </div>
+      <!-- Events log -->
+      <div class="events-card">
+        <div class="chart-card__header">
+          <h3 class="chart-card__title">Журнал подій</h3>
+          <span class="events-count" id="events-count"></span>
+        </div>
+        <div class="events-list" id="events-list">
+          <p class="events-empty">Немає подій</p>
+        </div>
+      </div>
 
-  </main>
+    </section>
 
+    <!-- ─────────────── DEVICES VIEW ─────────────── -->
+    <section class="view view--hidden" id="view-devices">
+
+      <div class="toolbar">
+        <input class="toolbar__search" id="search" type="search" placeholder="Пошук за назвою або IP…" />
+
+        <select class="toolbar__filter" id="filter-type">
+          <option value="">Всі типи</option>
+          <option value="server">Сервер</option>
+          <option value="router">Маршрутизатор</option>
+          <option value="switch">Комутатор</option>
+          <option value="printer">Принтер</option>
+          <option value="computer">Комп'ютер</option>
+          <option value="camera">IP-камера</option>
+          <option value="other">Інший</option>
+        </select>
+
+        <select class="toolbar__filter" id="filter-status">
+          <option value="">Всі статуси</option>
+          <option value="up">Активний</option>
+          <option value="down">Недоступний</option>
+          <option value="slow">Повільний</option>
+          <option value="unstable">Нестабільний</option>
+          <option value="unknown">Невідомо</option>
+        </select>
+
+        <div class="toolbar__scan-group">
+          <input type="text" id="scan-subnet" class="toolbar__search scan-subnet-input" placeholder="192.168.1.0/24" />
+          <button class="btn btn--primary" id="btn-scan">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            Сканувати
+          </button>
+        </div>
+
+        <button class="btn btn--primary" id="btn-add">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Додати
+        </button>
+      </div>
+
+      <div class="grid" id="device-grid">
+        <p class="empty" id="empty-msg">Немає пристроїв. Додайте перший!</p>
+      </div>
+    </section>
+
+    <!-- ─────────────── TOPOLOGY VIEW ─────────────── -->
+    <section class="view view--hidden" id="view-topology">
+      <div class="topology-wrap">
+        <canvas id="topology-canvas"></canvas>
+        <div class="topology-legend">
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--up"></span> Активний</div>
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--down"></span> Недоступний</div>
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--slow"></span> Повільний</div>
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--unstable"></span> Нестабільний</div>
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--unknown"></span> Невідомо</div>
+          <div class="topo-legend-item"><span class="topo-dot topo-dot--maint"></span> Обслугов.</div>
+        </div>
+        <div class="topology-tooltip" id="topo-tooltip"></div>
+      </div>
+    </section>
+
+  </div><!-- /app-main -->
+
+  <!-- ═══════════════════════ MODALS ═══════════════════════ -->
+
+  <!-- Add/Edit device -->
   <dialog class="modal" id="device-modal">
     <form class="modal__form" id="device-form" method="dialog">
       <h2 class="modal__title" id="modal-title">Новий пристрій</h2>
@@ -69,12 +301,12 @@
         <span class="field__label">Назва</span>
         <input class="field__input" id="f-name" type="text" placeholder="Сервер 1" required />
       </label>
-
       <label class="field">
         <span class="field__label">IP-адреса</span>
-        <input class="field__input" id="f-host" type="text" placeholder="192.168.1.1" required pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$" title="Формат IPv4 (наприклад: 192.168.1.1)" />
+        <input class="field__input" id="f-host" type="text" placeholder="192.168.1.1" required
+          pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+          title="Формат IPv4" />
       </label>
-
       <label class="field">
         <span class="field__label">Тип пристрою</span>
         <select class="field__input" id="f-type">
@@ -87,7 +319,6 @@
           <option value="other">Інший</option>
         </select>
       </label>
-
       <label class="field">
         <span class="field__label">Метод перевірки</span>
         <select class="field__input" id="f-method">
@@ -96,6 +327,17 @@
         </select>
       </label>
 
+      <div class="field field--row">
+        <label class="field" style="flex:1">
+          <span class="field__label">Поріг RTT (мс)</span>
+          <input class="field__input" id="f-rtt" type="number" min="10" max="5000" value="100" />
+        </label>
+        <label class="field" style="flex:1" id="snmp-fields">
+          <span class="field__label">SNMP Community</span>
+          <input class="field__input" id="f-community" type="text" value="public" />
+        </label>
+      </div>
+
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" id="btn-cancel">Скасувати</button>
         <button type="submit" class="btn btn--primary" id="btn-save">Зберегти</button>
@@ -103,12 +345,41 @@
     </form>
   </dialog>
 
+  <!-- Device detail -->
   <dialog class="modal modal--wide" id="detail-modal">
     <div class="modal__form">
-      <h2 class="modal__title" id="detail-name">Деталі пристрою</h2>
-      <p class="detail-host" id="detail-host"></p>
+      <div class="detail-header">
+        <div>
+          <h2 class="modal__title" id="detail-name">Деталі пристрою</h2>
+          <p class="detail-host" id="detail-host"></p>
+        </div>
+        <button class="btn btn--ghost btn--sm" id="btn-maintenance-toggle">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          Обслуговування
+        </button>
+      </div>
 
       <div class="detail-meta" id="detail-meta"></div>
+
+      <!-- SNMP metrics (shown only if SNMP device) -->
+      <div class="snmp-metrics" id="snmp-metrics" style="display:none">
+        <div class="snmp-metric">
+          <div class="snmp-metric__label">CPU</div>
+          <div class="snmp-metric__bar-wrap">
+            <div class="snmp-metric__bar" id="snmp-cpu-bar"></div>
+          </div>
+          <div class="snmp-metric__val" id="snmp-cpu-val">—</div>
+        </div>
+        <div class="snmp-metric">
+          <div class="snmp-metric__label">RAM</div>
+          <div class="snmp-metric__bar-wrap">
+            <div class="snmp-metric__bar" id="snmp-ram-bar"></div>
+          </div>
+          <div class="snmp-metric__val" id="snmp-ram-val">—</div>
+        </div>
+      </div>
 
       <h3 class="chart-title">Доступність за 24 год</h3>
       <div class="chart-wrap">
@@ -121,18 +392,14 @@
     </div>
   </dialog>
 
-  <dialog class="modal" id="scan-modal">
+  <!-- Scan modal -->
+  <dialog class="modal modal--wide" id="scan-modal">
     <div class="modal__form">
       <h2 class="modal__title">Пошук у локальній мережі</h2>
-      
       <div class="scan-progress" id="scan-progress">
         <div class="scan-progress__bar" id="scan-progress-bar"></div>
       </div>
-
-      <div class="scan-list" id="scan-results">
-        
-      </div>
-
+      <div class="scan-list" id="scan-results"></div>
       <div class="modal__actions">
         <button type="button" class="btn btn--ghost" id="btn-scan-close">Закрити</button>
       </div>
